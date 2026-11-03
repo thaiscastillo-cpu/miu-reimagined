@@ -79,7 +79,6 @@ export default async function HorarioPage({ searchParams }: PageProps<"/horario"
                   return (
                     <Link
                       key={d}
-                     
                       href={`/horario?clase=${s.id}`}
                       scroll={false}
                       aria-current={isSelected ? "true" : undefined}
