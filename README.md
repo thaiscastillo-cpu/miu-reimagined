@@ -33,7 +33,8 @@ El diseño completo se hizo en Claude Design y se publica **tal cual** (`index.h
 | Nombre y foto del usuario | **Real**, tomados de la cuenta de Google |
 | Rol del usuario (Estudiante / Catedrático / Administración) | **Real**: lo asigna Administración y se guarda en la base de datos. Solo Administración puede cambiar de vista con el selector superior. |
 | Guardado de lo que cada persona hace (entregas, preferencias, borradores…) | **Real**: se guarda en la cuenta del usuario en Supabase y se recupera al volver a entrar. |
-| Adjuntar desde Google Drive | **Real** cuando se configuran las claves públicas de Google Picker; si no, se usa el selector simulado del diseño. |
+| Entregas → revisión docente | **Real**: cuando un estudiante entrega, el catedrático la ve en *Tareas y entregas*, abre los adjuntos de Drive y califica; el estudiante ve su nota y retroalimentación. Solo catedráticos y Administración pueden calificar (`grade_submission`). |
+| Adjuntar desde Google Drive | **Real** (Google Picker, permiso `drive.file`: la app solo accede a los archivos que el usuario elige). |
 | Cursos, notas, pagos, parqueo, chat y datos de otros perfiles | Datos de ejemplo del diseño. |
 
 ## Arquitectura
@@ -46,7 +47,8 @@ Vercel (sitio estático) ◄── GitHub (cada push publica)
 Supabase Auth ◄── Google OAuth
 Supabase Postgres (RLS)
   ├─ profiles     rol y datos básicos de cada usuario
-  └─ user_state   lo que cada usuario hizo en MiU (JSON)
+  ├─ user_state         lo que cada usuario hizo en MiU (JSON)
+  └─ task_submissions   entregas compartidas con el catedrático
 ```
 
 `supabase/migrations/` contiene el esquema completo (también tablas de cursos, tareas, horarios y avisos de una versión anterior en la rama `nextjs-supabase`).
@@ -55,6 +57,7 @@ Supabase Postgres (RLS)
 
 - **RLS en todas las tablas.** El rol `anon` no tiene permisos.
 - Cada usuario solo puede **leer y escribir su propio** `user_state`.
+- Un estudiante solo ve **sus** entregas y no puede ponerse nota; catedráticos y Administración ven todas y califican.
 - Nadie puede cambiarse su propio rol. Solo Administración, a través de la función `set_user_role`, y no puede quitarse su propio rol de Administración.
 - Probado con usuarios distintos:
   - un estudiante no ve ni modifica los datos de otro;

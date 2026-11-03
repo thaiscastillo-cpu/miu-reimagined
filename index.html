@@ -405,14 +405,14 @@ login();
   const SUPABASE_URL='https://nsmjewjnyskwmusklthv.supabase.co';
   const SUPABASE_KEY='sb_publishable_uPGsZVQTDwhW5Swrwd6fTA_p-Zvuxx6'; // clave publicable: segura en el navegador (RLS protege los datos)
   // Google Drive Picker: valores públicos de Google Cloud. Vacíos = se usa el selector simulado del diseño.
-  const DRIVE={clientId:'',apiKey:'',appId:''};
+  const DRIVE={clientId:'154378877085-jgt052thjg9824e0vbf68gj8qpjvq5qs.apps.googleusercontent.com',apiKey:'AIzaSyBDfb-0Itr4N_MQrX-igSenzXJyefaAumM',appId:'154378877085'};
   if(!window.supabase){return}
   const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{flowType:'pkce',detectSessionInUrl:true,persistSession:true}});
   const ROLES=[['estudiante','Estudiante'],['catedratico','Catedrático'],['administracion','Administración']];
   const roleLabel=k=>(ROLES.find(r=>r[0]===k)||ROLES[0])[1];
   const KEY='miu-demo-v2',OWNER='miu-owner';
   const showLogin=window.login;
-  let uid=null,isAdmin=false,users=null,syncTimer=null,syncWarned=false;
+  let uid=null,isAdmin=false,isTeacher=false,users=null,subs=null,syncTimer=null,syncWarned=false;
   window.miuRoleLocked=true;
 
   function useProfile(user){
@@ -443,6 +443,63 @@ login();
   window.adminView=function(){
     const rows=!users?'<tr><td colspan="3" class="muted">Cargando usuarios…</td></tr>':users.length?users.map(u=>`<tr><td>${esc(u.display_name||'')}</td><td>${esc(u.email||'')}</td><td><select aria-label="Rol de ${esc(u.email||'')}" onchange="miuSetRole('${u.id}',this.value)" ${u.id===uid?'disabled title="Tu propio rol"':''} style="padding:8px;border:1px solid var(--line);border-radius:7px;background:#fff">${ROLES.map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="3" class="muted">Todavía no hay usuarios registrados.</td></tr>';
     return origAdminView()+`<section class="panel" style="margin-top:22px"><h2>Usuarios y roles</h2><p class="small muted" style="line-height:1.8;margin:10px 0 15px">Cada persona aparece aquí después de entrar con Google por primera vez. El rol que asignés define qué ve en MiU.</p><div class="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CORREO</th><th>ROL</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  };
+
+  // ── Entregas reales: estudiante entrega → catedrático revisa y califica ──
+  async function pushSubmission(taskId,receipt){
+    const row={student_name:state.profile?.name||state.profile?.email||'Estudiante',receipt,submitted_at:new Date().toISOString()};
+    const {data:ex}=await sb.from('task_submissions').select('id').eq('task_id',taskId).eq('student_id',uid).maybeSingle();
+    const {error}=ex?await sb.from('task_submissions').update(row).eq('id',ex.id):await sb.from('task_submissions').insert({task_id:taskId,...row});
+    if(error)toast('Tu entrega quedó en tu cuenta, pero no pudimos enviarla al catedrático. Intentá de nuevo.');
+  }
+  const origSubmit=window.submitTask;
+  window.submitTask=function(){
+    const id=currentTask,before=state.receipts[id]?.code;
+    origSubmit();
+    const r=state.receipts[id];
+    if(uid&&r&&r.code!==before)pushSubmission(id,r);
+  };
+  // El estudiante recibe la nota y la retroalimentación del catedrático.
+  async function pullMyGrades(){
+    const {data}=await sb.from('task_submissions').select('task_id,receipt,grade,feedback').eq('student_id',uid);
+    let changed=false;
+    (data||[]).forEach(s=>{
+      if(!state.receipts[s.task_id]){state.receipts[s.task_id]=s.receipt;changed=true}
+      if(s.grade!=null&&(state.receipts[s.task_id].grade!==s.grade||state.receipts[s.task_id].feedback!==s.feedback)){state.receipts[s.task_id].grade=s.grade;state.receipts[s.task_id].feedback=s.feedback||'';changed=true}
+    });
+    if(changed){save();render()}
+  }
+  async function loadSubs(){
+    const {data,error}=await sb.from('task_submissions').select('id,task_id,student_name,receipt,grade,feedback,submitted_at').order('submitted_at',{ascending:false});
+    subs=error?[]:data;
+  }
+  const subsFor=id=>(subs||[]).filter(s=>s.task_id===id);
+  // Catedrático: "Tareas y entregas" muestra las entregas reales de cada estudiante.
+  const origTeacherTasks=window.teacherTasksView;
+  window.teacherTasksView=function(){
+    if(!isTeacher)return origTeacherTasks();
+    if(!subs){loadSubs().then(()=>{if(page==='teacherTasks')render()})}
+    return heading('Actividades y entregas','Publicá con una plantilla y mantené claras las instrucciones.',`<button class="btn" onclick="newTask()">+ Publicación rápida</button>`)+`${state.activityEditorDraft?`<div class="notice row between wrap" style="margin-bottom:20px"><span>Tenés un borrador guardado de ${state.activityEditorDraft.title?esc(state.activityEditorDraft.title):'una actividad'}.</span><button class="btn secondary" onclick="newTask(${state.activityEditorDraft.editing?state.activityEditorDraft.id:'undefined'})">Retomar borrador</button></div>`:''}<div class="panel table-wrap"><table><thead><tr><th>ACTIVIDAD</th><th>CURSO</th><th>ENTREGAS</th><th>ACCIONES</th></tr></thead><tbody>${tasks().map(t=>{const list=subsFor(t.id),late=list.filter(s=>s.receipt?.late).length,pend=list.filter(s=>s.grade==null).length;return `<tr><td><b>${esc(t.title)}</b><br><span class="small muted">${t.group?'Grupal':t.type} · ${t.weight}%<br>${esc(deadlineText(taskDeadline(t)))}</span></td><td>${C(t.course).name}</td><td>${!subs?'<span class="small muted">Cargando…</span>':list.length?`<span class="badge ${late?'orange':'green'}">${list.length} ${list.length===1?'recibida':'recibidas'}${late?` · ${late} tarde`:''}</span>${pend?`<br><span class="small muted">${pend} por calificar</span>`:''}`:'<span class="small muted">Sin entregas</span>'}</td><td><div class="row wrap"><button class="text-btn" onclick="newTask(${t.id})">Editar</button><button class="text-btn" onclick="miuReviewList(${t.id})">Revisar ↗</button></div></td></tr>`}).join('')}</tbody></table></div>`;
+  };
+  const origReview=window.reviewSubmission;
+  window.reviewSubmission=function(id){return isTeacher?miuReviewList(id):origReview(id)};
+  window.miuReviewList=async function(taskId){
+    await loadSubs();
+    const t=tasks().find(x=>x.id===taskId),list=subsFor(taskId);
+    openModal(t.title,'Entregas de tus estudiantes',list.length?list.map(s=>`<div class="file-row"><span><b>${esc(s.student_name)}</b><br><span class="small muted">${esc(s.receipt?.time||new Date(s.submitted_at).toLocaleString('es-GT',{timeZone:'America/Guatemala'}))}</span></span><span class="row" style="gap:8px">${s.grade!=null?`<span class="badge green">${s.grade}/100</span>`:`<span class="badge ${s.receipt?.late?'orange':''}">${s.receipt?.late?'Tarde':'Por calificar'}</span>`}<button class="btn secondary" onclick="miuReview(${s.id})">Revisar</button></span></div>`).join(''):'<div class="empty">Todavía no hay entregas de estudiantes para esta actividad.</div>');
+  };
+  window.miuReview=function(subId){
+    const s=(subs||[]).find(x=>x.id===subId);if(!s)return;
+    const t=tasks().find(x=>x.id===s.task_id),r=s.receipt||{};
+    openModal(t.title,'Revisión docente · '+s.student_name,`<div class="receipt"><b>${r.late?'Recibida · Tarde':'Recibida a tiempo'}</b><br>${esc(s.student_name)} · ${esc(r.time||'')}<br>${esc(r.code||'')}</div><h3>Adjuntos</h3>${(r.files||[]).map(f=>`<div class="file-row"><span>${/^https:\/\//.test(f.url||'')?`<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)} ↗</a>`:esc(f.name)}</span><span class="badge">${esc(f.source)}</span></div>`).join('')||'<p class="small muted">Sin adjuntos.</p>'}<p class="small muted" style="margin:15px 0">Los documentos de Google Drive se abren con su enlace. De los archivos subidos desde el dispositivo se conserva el nombre.</p>${t.group&&r.members?.length?`<h3>Integrantes</h3><div class="rubric">${esc(s.student_name)} · Confirmada<br>${r.members.map(m=>`${esc(m.name)} · ${m.confirmed?'Confirmada':'Pendiente'}`).join('<br>')}</div>`:''}<p class="small" style="margin-top:15px"><b>Comentario:</b> ${esc(r.comment||'Sin comentario')}</p><div class="field" style="margin-top:20px"><label for="submission-grade">Calificación (0–100)</label><input id="submission-grade" type="number" min="0" max="100" value="${s.grade??''}"></div><div class="field"><label for="submission-feedback">Retroalimentación</label><textarea id="submission-feedback">${esc(s.feedback||'')}</textarea></div>`,`<button class="btn secondary" onclick="miuReviewList(${s.task_id})">Volver</button><button class="btn" onclick="miuSaveGrade(${s.id})">Guardar revisión</button>`);
+  };
+  window.miuSaveGrade=async function(subId){
+    const val=document.querySelector('#submission-grade').value,n=Number(val);
+    if(val===''||!Number.isInteger(n)||n<0||n>100){toast('Ingresá una nota entera de 0 a 100.');return}
+    const {error}=await sb.rpc('grade_submission',{sub_id:subId,new_grade:n,new_feedback:document.querySelector('#submission-feedback').value});
+    if(error){toast('No se pudo guardar la revisión: '+error.message);return}
+    const s=subs.find(x=>x.id===subId);toast('Revisión guardada. El estudiante la verá en su entrega.');
+    await miuReviewList(s.task_id);if(page==='teacherTasks')render();
   };
 
   window.enter=async function(){
@@ -478,11 +535,14 @@ login();
     try{localStorage.setItem(OWNER,uid)}catch{}
     const dbRole=profile?.role||'estudiante';
     isAdmin=dbRole==='administracion';
+    isTeacher=isAdmin||dbRole==='catedratico';
     window.miuRoleLocked=!isAdmin;
     if(!isAdmin||!remote?.data)state.role=roleLabel(dbRole);
     useProfile(user);
     save();
     render();
+    pullMyGrades();
+    if(isTeacher)loadSubs().then(()=>{if(page==='teacherTasks')render()});
     if(isAdmin){await loadUsers();if(page==='admin')render()}
   }
 
