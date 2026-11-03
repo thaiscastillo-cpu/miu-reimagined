@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MIU Reimagined
 
-## Getting Started
+> **Prototipo académico no oficial.** No tiene vinculación operativa con MIU/UFM. Todos los cursos, tareas, horarios y avisos son ficticios.
 
-First, run the development server:
+Propuesta estudiantil del workshop *Beyond Vibe Coding* (UFM, oct–nov 2026). Junta en un solo lugar las tres cosas que un estudiante consulta cada semana: qué entrega viene, cuándo y dónde es su próxima clase, y qué avisó el catedrático.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Los 3 happy paths
+
+| Flujo | Recorrido | Criterio de aceptación |
+|---|---|---|
+| **A. Próxima entrega** | Dashboard → Mis tareas → Detalle → *Marcar como entregada* | La tarea más urgente aparece primero; al marcarla, sigue entregada después de recargar y solo la ve su dueño. |
+| **B. Próxima clase** | Dashboard → *Ver mi semana* → clase → aula y catedrático | La próxima clase está resaltada; al tocarla se ven día, hora, aula y catedrático. |
+| **C. Aviso académico** | Dashboard → Avisos → curso → aviso | Los avisos están ordenados por fecha, los importantes marcados, y se abre el contenido completo en ≤ 2 clics. |
+
+Fuera de alcance (backlog): pagos, parqueo, asignación de cursos, pensum, conferencias, chat, vista de catedrático y subida real de archivos.
+
+## Stack
+
+- **Next.js 16** (App Router, TypeScript) con los estilos del diseño exportado de Claude Design (`design/miu-design.html`) en `app/globals.css`, más Tailwind 4.
+- **Supabase**: Postgres + Auth con Google OAuth, usando `@supabase/ssr` (cookies y PKCE).
+- **Vercel** (Hobby) para el hosting.
+
+```
+app/
+  login/                  Pantalla de ingreso + botón de Google
+  auth/callback/route.ts  Supabase → Next.js: canjea el code por sesión
+  auth/signout/route.ts   Cerrar sesión
+  (app)/                  Rutas privadas (sidebar + etiqueta "no oficial")
+    page.tsx              Dashboard
+    tareas/               Lista, detalle y Server Actions de entrega
+    horario/              Semana y detalle de clase
+    avisos/               Lista por curso y detalle
+components/  lib/  proxy.ts (refresca la sesión y protege rutas)
+supabase/migrations/      Esquema + grants + RLS
+supabase/seed.sql         Datos ficticios
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Seguridad
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Las 7 tablas tienen **RLS activado**. `anon` no tiene permisos.
+- Un estudiante solo ve los cursos en los que está inscrito y **solo sus propias entregas**. No puede crear ni editar cursos, tareas, horarios ni avisos.
+- Al primer login, un trigger crea su perfil y lo inscribe en los 5 cursos de demo.
+- Probado con dos usuarios distintos: B no puede leer ni modificar la entrega de A, y una sesión anónima no lee nada.
+- En el navegador solo se usa la **clave publicable**. El Client Secret de Google vive únicamente en el panel de Supabase.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Correr localmente
 
-## Learn More
+```bash
+npm install
+cp .env.example .env.local   # completar con Supabase → Connect
+npm run dev                  # http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+Variables (ambas públicas; no saltan RLS):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Dónde se obtiene |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Connect → Project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase → Connect → Publishable key |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Para recrear la base: ejecutar `supabase/migrations/*.sql` en orden y después `supabase/seed.sql` en el SQL Editor.
 
-## Deploy on Vercel
+## Google OAuth (dos callbacks distintos)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Google → Supabase**: en Google Cloud → Clients → Authorized redirect URIs:
+   `https://nsmjewjnyskwmusklthv.supabase.co/auth/v1/callback`
+2. **Supabase → Next.js**: en Supabase → Authentication → URL Configuration → Redirect URLs:
+   `http://localhost:3000/auth/callback` y `https://<tu-url>.vercel.app/auth/callback`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Checklist del workshop
+
+- [ ] Leímos el research original de ~30 estudiantes.
+- [ ] Definimos 1 problema principal respaldado por evidencia.
+- [x] Tenemos 3 happy paths con criterios de aceptación.
+- [x] Construimos y documentamos un design system coherente.
+- [x] Exportamos el HTML de Claude Design.
+- [x] El agente preparó un plan (`docs/IMPLEMENTATION_PLAN.md`).
+- [ ] Creamos repositorio GitHub (sin secretos).
+- [x] Next.js corre localmente y `npm run build` no falla.
+- [x] Supabase tiene tablas, datos ficticios, grants y RLS.
+- [ ] Google OAuth funciona en la URL pública (login/logout).
+- [x] Dos usuarios no pueden ver datos privados del otro (prueba SQL).
+- [ ] Los 3 recorridos funcionan en computadora y móvil (verificar en la URL pública).
+- [ ] La app está disponible por HTTPS en `*.vercel.app`.
+- [ ] Probamos con 3 estudiantes y documentamos observaciones.
+- [ ] Implementamos 2 mejoras basadas en lo observado.
+- [ ] Publicamos la última versión y verificamos la URL.
+- [x] El producto informa que NO es el MIU oficial.
+- [ ] README, URL, investigación y demo final están listos.

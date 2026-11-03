@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // App 100% por usuario (cookies + RLS): todo se renderiza en cada request.
   turbopack: {
     rules: {
       "*.css": {
