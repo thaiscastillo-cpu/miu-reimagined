@@ -608,6 +608,76 @@ login();
     Object.values(state.chatMessages).forEach(list=>(list||[]).forEach(msg=>{if(msg.own){msg.author=myName();msg.initials=studentInitials();msg.role=state.role||msg.role}}));
   }
 
+  // ── Chat de clase compartido (todos ven los mensajes de todos) ──
+  const sharedChat={};
+  const fmtTime=iso=>new Date(iso).toLocaleTimeString('es-GT',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Guatemala'});
+  const toMsg=r=>({id:'db'+r.id,remoteId:r.id,author:r.author_name,role:r.author_role,initials:r.initials||'',text:r.text,files:r.files||[],time:fmtTime(r.created_at),own:r.author_id===uid});
+  async function loadChat(courseId){
+    const {data}=await sb.from('chat_messages').select('*').eq('course_id',courseId).order('created_at').limit(300);
+    sharedChat[courseId]=(data||[]).map(toMsg);
+  }
+  const origMessagesFor=window.messagesFor;
+  window.messagesFor=function(id){
+    if(!uid)return origMessagesFor(id);
+    const local=(state.chatMessages?.[id]||[]).filter(m=>!m.remoteId);
+    return [...chatSeed(id),...local,...(sharedChat[id]||[])];
+  };
+  const origSendChat=window.sendChat;
+  window.sendChat=async function(){
+    const c=selectedChat,before=(state.chatMessages?.[c]||[]).length;
+    origSendChat();
+    const list=state.chatMessages?.[c]||[];
+    if(!uid||list.length===before)return;
+    const m=list[list.length-1];
+    const {data,error}=await sb.from('chat_messages').insert({course_id:c,author_name:m.author,author_role:['Estudiante','Catedrático','Administración'].includes(m.role)?m.role:'Estudiante',initials:(m.initials||'').slice(0,3),text:m.text||'',files:(m.files||[]).map(f=>({name:f.name}))}).select('*').single();
+    if(error){toast('Tu mensaje no se pudo enviar a la clase. Intentá de nuevo.');return}
+    m.remoteId=data.id;save();
+    sharedChat[c]=sharedChat[c]||[];if(!sharedChat[c].some(x=>x.remoteId===data.id))sharedChat[c].push(toMsg(data));
+    render();const feed=document.querySelector('.chat-feed');if(feed)feed.scrollTop=feed.scrollHeight;
+  };
+  const origOpenClassChat=window.openClassChat;
+  window.openClassChat=function(id){origOpenClassChat(id);if(uid)loadChat(Number(id)).then(()=>{if(page==='chat'&&selectedChat===Number(id)){render();const f=document.querySelector('.chat-feed');if(f)f.scrollTop=f.scrollHeight}})};
+  function listenChat(){
+    sb.channel('chat-clases').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages'},({new:r})=>{
+      sharedChat[r.course_id]=sharedChat[r.course_id]||[];
+      if(sharedChat[r.course_id].some(x=>x.remoteId===r.id))return;
+      sharedChat[r.course_id].push(toMsg(r));
+      if(page==='chat'&&selectedChat===r.course_id&&!document.querySelector('.modal')){
+        const input=document.querySelector('#chat-message'),draft=input?.value,focused=document.activeElement===input;
+        render();const i2=document.querySelector('#chat-message');if(i2&&draft!=null){i2.value=draft;if(focused)i2.focus()}
+        const f=document.querySelector('.chat-feed');if(f)f.scrollTop=f.scrollHeight;
+      }
+    }).subscribe();
+  }
+
+  // ── Calificaciones: el catedrático publica promedios a estudiantes reales ──
+  let courseGrades=null;
+  async function loadCourseGrades(){const {data}=await sb.from('course_grades').select('student_id,course_id,grade');courseGrades=data||[]}
+  const origTeacherGrades=window.teacherGradesView;
+  window.teacherGradesView=function(){
+    if(!isTeacher)return origTeacherGrades();
+    if(!students)loadStudents().then(()=>{if(page==='teacherGrades')render()});
+    if(!courseGrades)loadCourseGrades().then(()=>{if(page==='teacherGrades')render()});
+    const cid=Number(state.miuGradeCourse)||courses[0].id,c=C(cid);
+    const rows=!students||!courseGrades?'<tr><td colspan="3" class="muted">Cargando estudiantes…</td></tr>':students.length?students.map(st=>{const g=courseGrades.find(x=>x.student_id===st.id&&x.course_id===cid);return `<tr><td>${esc(st.display_name||st.email||'Estudiante')}<br><span class="small muted">${esc(st.email||'')}</span></td><td><input type="number" min="0" max="100" id="grade-${st.id}" aria-label="Promedio de ${esc(st.display_name||st.email||'')} en ${esc(c.name)}" value="${g?g.grade:''}" style="width:70px;padding:8px;border:1px solid var(--line);border-radius:7px"></td><td><button class="text-btn" onclick="miuPublishGrade('${st.id}',${cid})">${g?'Actualizar ↗':'Publicar ↗'}</button></td></tr>`}).join(''):'<tr><td colspan="3" class="muted">Todavía no hay estudiantes registrados.</td></tr>';
+    return heading('Notas claras y a tiempo.','Publicá el promedio de cada estudiante; lo ve en Mis notas.')+`<div class="notice" style="margin-bottom:20px">Importación desde Google Sheets simulada: no abre ni lee hojas reales.</div><div class="panel"><div class="row between wrap" style="margin-bottom:20px"><h2>Cuadro de calificaciones</h2><div class="row wrap"><label class="small" for="grade-course" style="font-weight:600">Curso</label><select id="grade-course" onchange="state.miuGradeCourse=Number(this.value);save();render()" style="padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;max-width:260px">${courses.map(x=>`<option value="${x.id}" ${x.id===cid?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button class="btn secondary" onclick="previewSheets()">${I('drive')}Importar de Sheets · Demo</button></div></div><div class="table-wrap"><table><thead><tr><th>ESTUDIANTE</th><th>PROMEDIO</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  };
+  window.miuPublishGrade=async function(studentId,courseId){
+    const el=document.querySelector('#grade-'+CSS.escape(studentId)),val=el?.value,n=Number(val);
+    if(val===''||!Number.isInteger(n)||n<0||n>100){toast('La nota debe ser un número entero entre 0 y 100.');return}
+    const exists=(courseGrades||[]).some(g=>g.student_id===studentId&&g.course_id===courseId);
+    const {error}=exists?await sb.from('course_grades').update({grade:n,published_at:new Date().toISOString()}).eq('student_id',studentId).eq('course_id',courseId):await sb.from('course_grades').insert({student_id:studentId,course_id:courseId,grade:n});
+    if(error){toast('No se pudo publicar la nota: '+error.message);return}
+    await loadCourseGrades();render();toast('Promedio publicado. El estudiante lo ve en Mis notas.');
+  };
+  // El estudiante recibe sus promedios publicados.
+  async function pullCourseGrades(){
+    const {data}=await sb.from('course_grades').select('course_id,grade').eq('student_id',uid);
+    let changed=false;state.gradeOverrides=state.gradeOverrides||{};
+    (data||[]).forEach(g=>{if(state.gradeOverrides[g.course_id]!==g.grade){state.gradeOverrides[g.course_id]=g.grade;changed=true;try{addNotice({key:'grade:'+g.course_id+':'+g.grade,type:'grade',title:'Nueva nota publicada',message:C(g.course_id).name+' · Revisá el detalle en Mis notas.',target:'grades'})}catch{}}});
+    if(changed){save();render()}
+  }
+
   window.enter=async function(){
     const btn=document.querySelector('.google-btn');
     if(btn){btn.disabled=true;btn.lastChild.textContent='Abriendo Google…'}
@@ -649,6 +719,9 @@ login();
     save();
     render();
     pullMyGrades();
+    if(dbRole==='estudiante')pullCourseGrades();
+    listenChat();
+    if(page==='chat')loadChat(selectedChat).then(render);
     loadLinks().then(render);
     if(isTeacher)loadSubs().then(()=>{if(page==='teacherTasks')render()});
     if(isAdmin){await loadUsers();if(page==='admin')render()}

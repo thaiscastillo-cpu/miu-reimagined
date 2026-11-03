@@ -34,6 +34,8 @@ El diseño completo se hizo en Claude Design y se publica **tal cual** (`index.h
 | Rol del usuario (Estudiante / Catedrático / Administración) | **Real**: lo asigna Administración y se guarda en la base de datos. Solo Administración puede cambiar de vista con el selector superior. |
 | Guardado de lo que cada persona hace (entregas, preferencias, borradores…) | **Real**: se guarda en la cuenta del usuario en Supabase y se recupera al volver a entrar. |
 | Entregas → revisión docente | **Real**: cuando un estudiante entrega, el catedrático la ve en *Tareas y entregas*, abre los adjuntos de Drive y califica; el estudiante ve su nota y retroalimentación. Solo catedráticos y Administración pueden calificar (`grade_submission`). |
+| Chat de clase | **Real y compartido**: todos ven los mensajes de los demás en tiempo real (Supabase Realtime). Cada quien escribe solo a su nombre; un estudiante no puede firmar como catedrático. |
+| Calificaciones (promedios) | **Real**: el catedrático elige el curso y publica el promedio de cada estudiante registrado; el estudiante lo ve en Mis notas. |
 | Adjuntar desde Google Drive | **Real** (Google Picker, permiso `drive.file`: la app solo accede a los archivos que el usuario elige). |
 | Cursos, notas, pagos, parqueo, chat y datos de otros perfiles | Datos de ejemplo del diseño. |
 
@@ -48,7 +50,10 @@ Supabase Auth ◄── Google OAuth
 Supabase Postgres (RLS)
   ├─ profiles     rol y datos básicos de cada usuario
   ├─ user_state         lo que cada usuario hizo en MiU (JSON)
-  └─ task_submissions   entregas compartidas con el catedrático
+  ├─ task_submissions   entregas compartidas con el catedrático
+  ├─ chat_messages      chat de clase compartido
+  ├─ course_grades      promedios publicados por catedráticos
+  └─ teacher_links      LinkedIn de catedráticos (lo edita Administración)
 ```
 
 `supabase/migrations/` contiene el esquema completo (también tablas de cursos, tareas, horarios y avisos de una versión anterior en la rama `nextjs-supabase`).
