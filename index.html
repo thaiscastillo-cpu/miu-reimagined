@@ -438,11 +438,17 @@ login();
     toast(error?'No se pudo cambiar el rol: '+error.message:'Rol actualizado. Se aplica la próxima vez que esa persona entre.');
     await loadUsers();render();
   };
-  // Administración: tabla para asignar roles, debajo de "Cursos y cupos".
+  // Administración: usuarios separados por rol, con buscador, para asignar roles.
   const origAdminView=window.adminView;
+  window.miuFilterUsers=function(q){
+    q=(q||'').trim().toLowerCase();
+    document.querySelectorAll('[data-user-row]').forEach(tr=>{tr.style.display=!q||tr.dataset.userRow.includes(q)?'':'none'});
+    document.querySelectorAll('[data-role-group]').forEach(g=>{const vis=[...g.querySelectorAll('[data-user-row]')].filter(tr=>tr.style.display!=='none').length;g.querySelector('[data-count]').textContent=vis;g.querySelector('[data-none]').style.display=vis?'none':''});
+  };
   window.adminView=function(){
-    const rows=!users?'<tr><td colspan="3" class="muted">Cargando usuarios…</td></tr>':users.length?users.map(u=>`<tr><td>${esc(u.display_name||'')}</td><td>${esc(u.email||'')}</td><td><select aria-label="Rol de ${esc(u.email||'')}" onchange="miuSetRole('${u.id}',this.value)" ${u.id===uid?'disabled title="Tu propio rol"':''} style="padding:8px;border:1px solid var(--line);border-radius:7px;background:#fff">${ROLES.map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="3" class="muted">Todavía no hay usuarios registrados.</td></tr>';
-    return origAdminView()+`<section class="panel" style="margin-top:22px"><h2>Usuarios y roles</h2><p class="small muted" style="line-height:1.8;margin:10px 0 15px">Cada persona aparece aquí después de entrar con Google por primera vez. El rol que asignés define qué ve en MiU.</p><div class="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CORREO</th><th>ROL</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    const roleSelect=u=>`<select aria-label="Rol de ${esc(u.email||'')}" onchange="miuSetRole('${u.id}',this.value)" ${u.id===uid?'disabled title="Tu propio rol"':''} style="padding:8px;border:1px solid var(--line);border-radius:7px;background:#fff">${ROLES.map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select>`;
+    const groups=!users?'<p class="small muted">Cargando usuarios…</p>':ROLES.map(([k,l])=>{const list=users.filter(u=>u.role===k);return `<div data-role-group="${k}" style="margin-top:22px"><h3 style="margin-bottom:8px">${k==='estudiante'?'Estudiantes':k==='catedratico'?'Catedráticos':'Administración'} <span class="small muted" data-count>${list.length}</span></h3><div class="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CORREO</th><th>ROL</th></tr></thead><tbody>${list.map(u=>`<tr data-user-row="${esc(((u.display_name||'')+' '+(u.email||'')).toLowerCase())}"><td>${esc(u.display_name||'')}</td><td>${esc(u.email||'')}</td><td>${roleSelect(u)}</td></tr>`).join('')}<tr data-none style="${list.length?'display:none':''}"><td colspan="3" class="small muted">Nadie en este grupo${list.length?' con esa búsqueda':''}.</td></tr></tbody></table></div></div>`}).join('');
+    return origAdminView()+`<section class="panel" style="margin-top:22px"><div class="row between wrap"><h2>Usuarios y roles</h2><input type="search" aria-label="Buscar usuario por nombre o correo" placeholder="Buscar por nombre o correo" oninput="miuFilterUsers(this.value)" style="padding:10px 12px;border:1px solid var(--line);border-radius:9px;min-width:240px"></div><p class="small muted" style="line-height:1.8;margin:10px 0 0">Cada persona aparece aquí después de entrar con Google por primera vez. El rol que asignés define qué ve en MiU.</p>${groups}</section>`;
   };
 
   // ── Entregas reales: estudiante entrega → catedrático revisa y califica ──
@@ -470,7 +476,7 @@ login();
     if(changed){save();render()}
   }
   async function loadSubs(){
-    const {data,error}=await sb.from('task_submissions').select('id,task_id,student_name,receipt,grade,feedback,submitted_at').order('submitted_at',{ascending:false});
+    const {data,error}=await sb.from('task_submissions').select('id,task_id,student_id,student_name,receipt,grade,feedback,submitted_at').order('submitted_at',{ascending:false});
     subs=error?[]:data;
   }
   const subsFor=id=>(subs||[]).filter(s=>s.task_id===id);
@@ -500,6 +506,23 @@ login();
     if(error){toast('No se pudo guardar la revisión: '+error.message);return}
     const s=subs.find(x=>x.id===subId);toast('Revisión guardada. El estudiante la verá en su entrega.');
     await miuReviewList(s.task_id);if(page==='teacherTasks')render();
+  };
+
+  // Catedrático: sección "Estudiantes" dentro de cada curso.
+  let students=null;
+  async function loadStudents(){
+    const {data,error}=await sb.from('profiles').select('id,display_name,email').eq('role','estudiante').order('display_name');
+    students=error?[]:data;
+  }
+  const origCourseView=window.courseView;
+  window.courseView=function(){
+    const html=origCourseView();
+    if(!isTeacher||state.role==='Estudiante')return html;
+    if(!students){loadStudents().then(()=>{if(page==='course')render()})}
+    if(!subs){loadSubs().then(()=>{if(page==='course')render()})}
+    const c=C(activeCourse),courseTasks=tasks().filter(t=>t.course===c.id).map(t=>t.id);
+    const rows=!students?'<p class="small muted" style="margin-top:12px">Cargando estudiantes…</p>':students.length?students.map(st=>{const done=(subs||[]).filter(s=>courseTasks.includes(s.task_id)&&s.student_id===st.id).length;const name=st.display_name||st.email||'Estudiante';return `<div class="file-row"><span class="row" style="gap:10px"><span class="avatar" style="width:30px;height:30px;font-size:10px">${esc(name.split(/[\s@]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase())}</span><span><b>${esc(name)}</b><br><span class="small muted">${esc(st.email||'')}</span></span></span><span class="badge">${done}/${courseTasks.length} entregas</span></div>`}).join(''):'<p class="small muted" style="margin-top:12px">Todavía no hay estudiantes registrados. Aparecen aquí cuando entran con Google y Administración les asigna el rol Estudiante.</p>';
+    return html.replace('<aside class="stack">',`<aside class="stack"><section class="panel"><h2>Estudiantes <span class="small muted" style="margin-left:6px">${students?students.length:''}</span></h2>${rows}</section>`);
   };
 
   window.enter=async function(){

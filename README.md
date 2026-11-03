@@ -58,6 +58,7 @@ Supabase Postgres (RLS)
 - **RLS en todas las tablas.** El rol `anon` no tiene permisos.
 - Cada usuario solo puede **leer y escribir su propio** `user_state`.
 - Un estudiante solo ve **sus** entregas y no puede ponerse nota; catedráticos y Administración ven todas y califican.
+- Los catedráticos ven la lista de estudiantes (nombre y correo), pero no a otros catedráticos ni a Administración.
 - Nadie puede cambiarse su propio rol. Solo Administración, a través de la función `set_user_role`, y no puede quitarse su propio rol de Administración.
 - Probado con usuarios distintos:
   - un estudiante no ve ni modifica los datos de otro;
