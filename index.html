@@ -569,9 +569,16 @@ login();
         });
         setTimeout(()=>{driveToken=null},50*60*1000);
       }
-      new google.picker.PickerBuilder()
-        .addView(new google.picker.DocsView(google.picker.ViewId.DOCS).setIncludeFolders(false))
-        .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+      const P=google.picker;
+      // Mi unidad con carpetas navegables, compartidos, destacados y subir desde la computadora.
+      const myDrive=new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(false).setParent('root').setMode(P.DocsViewMode.LIST);
+      const shared=new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(false).setOwnedByMe(false).setMode(P.DocsViewMode.LIST);
+      const starred=new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(false).setStarred(true).setMode(P.DocsViewMode.LIST);
+      const upload=new P.DocsUploadView().setIncludeFolders(true);
+      new P.PickerBuilder()
+        .addView(myDrive).addView(shared).addView(starred).addView(upload)
+        .enableFeature(P.Feature.MULTISELECT_ENABLED).enableFeature(P.Feature.SUPPORT_DRIVES)
+        .setTitle('Elegí tus archivos de Google Drive')
         .setOAuthToken(driveToken).setDeveloperKey(DRIVE.apiKey).setAppId(DRIVE.appId).setLocale('es')
         .setCallback(d=>{if(d.action===google.picker.Action.PICKED){d.docs.forEach(doc=>attachments.push({name:doc.name,source:'Google Drive',url:doc.url}));attachmentUI()}})
         .build().setVisible(true);
