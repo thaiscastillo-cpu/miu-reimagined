@@ -30,10 +30,10 @@ Sin esto, el botón "Continuar con Google" da error.
 1. https://supabase.com/dashboard/project/nsmjewjnyskwmusklthv/auth/providers → **Google** → activar.
 2. Pegá **Client ID** y **Client Secret** → **Save**.
 3. https://supabase.com/dashboard/project/nsmjewjnyskwmusklthv/auth/url-configuration
-   - **Site URL**: `https://miu-reimagined-thais-7bb8.vercel.app`
+   - **Site URL**: `https://miu-reimagined.vercel.app`
    - **Redirect URLs** → Add URL (una por una):
      ```
-     https://miu-reimagined-thais-7bb8.vercel.app/auth/callback
+     https://miu-reimagined.vercel.app/auth/callback
      http://localhost:3000/auth/callback
      ```
    - **Save**.

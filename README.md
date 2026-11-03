@@ -65,7 +65,7 @@ Para recrear la base: ejecutar `supabase/migrations/*.sql` en orden y después `
 1. **Google → Supabase**: en Google Cloud → Clients → Authorized redirect URIs:
    `https://nsmjewjnyskwmusklthv.supabase.co/auth/v1/callback`
 2. **Supabase → Next.js**: en Supabase → Authentication → URL Configuration → Redirect URLs:
-   `http://localhost:3000/auth/callback` y `https://<tu-url>.vercel.app/auth/callback`
+   `http://localhost:3000/auth/callback` y `https://miu-reimagined.vercel.app/auth/callback`
 
 ## Checklist del workshop
 
@@ -81,7 +81,7 @@ Para recrear la base: ejecutar `supabase/migrations/*.sql` en orden y después `
 - [ ] Google OAuth funciona en la URL pública (login/logout).
 - [x] Dos usuarios no pueden ver datos privados del otro (prueba SQL).
 - [ ] Los 3 recorridos funcionan en computadora y móvil (verificar en la URL pública).
-- [ ] La app está disponible por HTTPS en `*.vercel.app`.
+- [x] La app está disponible por HTTPS en `*.vercel.app`: https://miu-reimagined.vercel.app
 - [ ] Probamos con 3 estudiantes y documentamos observaciones.
 - [ ] Implementamos 2 mejoras basadas en lo observado.
 - [ ] Publicamos la última versión y verificamos la URL.
