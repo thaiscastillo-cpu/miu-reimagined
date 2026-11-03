@@ -578,6 +578,36 @@ login();
   const origScan=window.simulateConferenceScan;
   window.simulateConferenceScan=function(id,kind){if(!(isAdmin&&state.role==='Administración')){toast('La asistencia la registra Administración.');return}origScan(id,kind)};
 
+  // ── Todo lo que hace el usuario sale con su nombre (en lugar de los perfiles de ejemplo) ──
+  const myName=()=>state.profile?.name||'';
+  const swapName=(html,sample)=>myName()?String(html).split(sample).join(esc(myName())):html;
+  const origChatIdentity=window.chatIdentity;
+  window.chatIdentity=function(){
+    if(!myName())return origChatIdentity();
+    return {author:myName(),role:state.role||'Estudiante',initials:studentInitials()};
+  };
+  const wrapName=(fn,sample)=>{const orig=window[fn];if(typeof orig!=='function')return;window[fn]=function(){return swapName(orig.apply(this,arguments),sample)}};
+  wrapName('groupStatus','Sofía Ortega');
+  const origParticipants=window.chatParticipants;
+  window.chatParticipants=function(id){
+    origParticipants(id);
+    const m=document.querySelector('.modal');if(!m||!myName())return;
+    m.querySelectorAll('.group-person span').forEach(el=>{if(el.textContent==='Sofía Ortega · Vos')el.textContent=myName()+' · Vos'});
+  };
+  const origConfReceipt=window.conferenceReceipt;
+  window.conferenceReceipt=function(){
+    const r=origConfReceipt.apply(this,arguments);
+    const m=document.querySelector('.modal');
+    const box=m&&m.querySelector('.receipt');
+    if(box&&myName())box.innerHTML=box.innerHTML.split('Sofía Ortega · Cuenta de ejemplo').join(esc(myName()));
+    return r;
+  };
+  // Mensajes que el usuario ya había escrito antes de entrar con su cuenta.
+  function renameOwnMessages(){
+    if(!myName()||!state.chatMessages)return;
+    Object.values(state.chatMessages).forEach(list=>(list||[]).forEach(msg=>{if(msg.own){msg.author=myName();msg.initials=studentInitials();msg.role=state.role||msg.role}}));
+  }
+
   window.enter=async function(){
     const btn=document.querySelector('.google-btn');
     if(btn){btn.disabled=true;btn.lastChild.textContent='Abriendo Google…'}
@@ -615,6 +645,7 @@ login();
     window.miuRoleLocked=!isAdmin;
     if(!isAdmin||!remote?.data)state.role=roleLabel(dbRole);
     useProfile(user);
+    renameOwnMessages();
     save();
     render();
     pullMyGrades();
