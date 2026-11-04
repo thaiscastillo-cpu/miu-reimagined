@@ -1,5 +1,3 @@
--- BORRADOR · NO APLICADO. Pendiente de aprobación: incluye 'delete from public.courses'.
--- Se reemplazará por una versión que no borre datos si así se decide.
 -- MiU versión completa: cursos e inscripciones reales, tareas del catedrático compartidas,
 -- archivos guardados (Storage) y asistencia a conferencias registrada por Administración.
 
