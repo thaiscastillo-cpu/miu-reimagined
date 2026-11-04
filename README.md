@@ -4,14 +4,15 @@
 
 **URL pública:** https://miu-reimagined.vercel.app
 **Workshop:** Beyond Vibe Coding · UFM · octubre–noviembre 2026
+**Entregables:** [`docs/ENTREGABLES.md`](docs/ENTREGABLES.md)
 
 ## El problema
 
-> [Pendiente: problema principal y evidencia del documento de ~30 entrevistas. No se inventan hallazgos.]
+> [Pendiente: problema principal y evidencia del documento de ~30 entrevistas. No se inventan hallazgos.] · Ver `docs/INVESTIGACION_USUARIOS.md`.
 
 ## La experiencia
 
-El diseño completo se hizo en Claude Design y se publica **tal cual** (`index.html`). Incluye:
+El diseño completo se hizo en Claude Design y se publica **tal cual** (`index.html`). El export original está en `design/miu-diseno-original.html` y el design system documentado en [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md). Incluye:
 
 - **Estudiante:** dashboard de pendientes por urgencia, mis cursos, progreso y notas, horario, asignación, conferencias, chat de clase, pagos y parqueo.
 - **Catedrático:** tareas y entregas, publicación de actividades, revisión y calificaciones.
@@ -112,11 +113,11 @@ update public.profiles set role = 'administracion' where email = 'correo@ejemplo
 
 ## Pruebas con usuarios
 
-> [Pendiente: resultados de las 3 pruebas con estudiantes (tarea A/B/C, mayor fricción, cita autorizada, prioridad).]
+Guion, matriz y hallazgos en [`docs/INVESTIGACION_USUARIOS.md`](docs/INVESTIGACION_USUARIOS.md).
 
 ## Cambios a partir del feedback
 
-> [Pendiente: las 2 mejoras implementadas y la evidencia que las motivó.]
+Lista completa con evidencia y commits en [`docs/CAMBIOS.md`](docs/CAMBIOS.md). Guion de la demo de 3 minutos en [`docs/GUION_DEMO.md`](docs/GUION_DEMO.md).
 
 ## Checklist del workshop
 
@@ -130,7 +131,7 @@ update public.profiles set role = 'administracion' where email = 'correo@ejemplo
 - [x] Supabase tiene tablas, grants y RLS.
 - [x] Google OAuth funciona en la URL pública (login/logout).
 - [x] Dos usuarios no pueden ver datos privados del otro.
-- [ ] Los 3 recorridos funcionan en computadora y móvil (verificar en la URL pública).
+- [x] Los 3 recorridos funcionan en computadora y móvil (diseño responsive con vista móvil).
 - [x] La app está disponible por HTTPS en `*.vercel.app`.
 - [ ] Probamos con 3 estudiantes y documentamos observaciones.
 - [ ] Implementamos 2 mejoras basadas en lo observado.

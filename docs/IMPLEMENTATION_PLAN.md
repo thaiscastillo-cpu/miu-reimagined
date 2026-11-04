@@ -1,3 +1,5 @@
+> **Nota:** este fue el plan inicial (Fase 0). El proyecto final publica el diseño de Claude Design tal cual y lo conecta a Supabase; ver README y `docs/CAMBIOS.md`.
+
 # MIU Reimagined — Plan de implementación (Fase 0)
 
 > Prototipo académico **no oficial**. Sin vinculación operativa con MIU/UFM. Solo datos ficticios.
