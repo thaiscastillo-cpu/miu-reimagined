@@ -53,7 +53,7 @@ const initialTasks=[{id:1,course:1,title:'Análisis de estados financieros',type
 let state;try{state=JSON.parse(localStorage.getItem('miu-demo-v2')||'null')}catch{}state=Object.assign({role:'Estudiante',receipts:{},assignments:[],park:12,balance:3850,honor:true,calendar:false,notify:false,groups:[],reviews:[],extraTasks:[],adminCapacity:6},state||{});
 let page='home',filter='Todos',search='',activeCourse=1,currentTask=null,attachments=[],modalReturnFocus=null,mobile=false;
 const save=()=>{try{localStorage.setItem('miu-demo-v2',JSON.stringify(state))}catch{}window.miuSync&&window.miuSync()};
-const tasks=()=>[...initialTasks,{id:4,course:2,title:'Segundo examen parcial',type:'Examen',due:'Jue 5 nov · 10:00',date:'2026-11-05',weight:20,late:false,group:false,desc:'Repasá los temas 5 al 8 y los ejercicios de incentivos. Examen presencial en el aula C-201. Traé tu carné y materiales permitidos.'},{id:5,course:1,title:'Lectura: flujo de efectivo',type:'Lectura',due:'Mié 4 nov · 08:00',date:'2026-11-04',weight:0,late:false,group:false,desc:'Leé el capítulo sobre flujo de efectivo antes de clase. Prepará dos preguntas para la discusión; esta lectura no requiere subir un archivo.'},...state.extraTasks].map(t=>{const merged={...t,...(state.taskEdits?.[t.id]||{})};return {...merged,late:taskTiming(merged).key==='overdue'}});
+const tasks=()=>[...initialTasks,{id:4,course:2,title:'Segundo examen parcial',type:'Examen',due:'Jue 5 nov · 10:00',date:'2026-11-05',weight:20,late:false,group:false,desc:'Repasá los temas 5 al 8 y los ejercicios de incentivos. Examen presencial en el aula C-201. Traé tu carné y materiales permitidos.'},{id:5,course:1,title:'Lectura: flujo de efectivo',type:'Lectura',due:'Mié 4 nov · 08:00',date:'2026-11-04',weight:0,late:false,group:false,desc:'Leé el capítulo sobre flujo de efectivo antes de clase. Prepará dos preguntas para la discusión; esta lectura no requiere subir un archivo.'},...state.extraTasks.filter(t=>!window.miuSharedIds?.has(t.id)),...(window.miuSharedNew||[])].filter(t=>!window.miuCourseIds||window.miuCourseIds.has(t.course)).map(t=>{const merged={...t,...(state.taskEdits?.[t.id]||{}),...(window.miuSharedEdits?.[t.id]||{})};return {...merged,late:taskTiming(merged).key==='overdue'}});
 const C=id=>courses.find(c=>c.id===Number(id));
 const gradeFor=id=>state.gradeOverrides?.[id]??C(id).grade;
 const auxFor=id=>state.auxNames?.[id]||C(id).aux;
@@ -448,12 +448,43 @@ login();
   window.adminView=function(){
     const roleSelect=u=>`<select aria-label="Rol de ${esc(u.email||'')}" onchange="miuSetRole('${u.id}',this.value)" ${u.id===uid?'disabled title="Tu propio rol"':''} style="padding:8px;border:1px solid var(--line);border-radius:7px;background:#fff">${ROLES.map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select>`;
     const groups=!users?'<p class="small muted">Cargando usuarios…</p>':ROLES.map(([k,l])=>{const list=users.filter(u=>u.role===k);return `<div data-role-group="${k}" style="margin-top:22px"><h3 style="margin-bottom:8px">${k==='estudiante'?'Estudiantes':k==='catedratico'?'Catedráticos':'Administración'} <span class="small muted" data-count>${list.length}</span></h3><div class="table-wrap"><table><thead><tr><th>NOMBRE</th><th>CORREO</th><th>ROL</th></tr></thead><tbody>${list.map(u=>`<tr data-user-row="${esc(((u.display_name||'')+' '+(u.email||'')).toLowerCase())}"><td>${esc(u.display_name||'')}</td><td>${esc(u.email||'')}</td><td>${roleSelect(u)}</td></tr>`).join('')}<tr data-none style="${list.length?'display:none':''}"><td colspan="3" class="small muted">Nadie en este grupo${list.length?' con esa búsqueda':''}.</td></tr></tbody></table></div></div>`}).join('');
-    return origAdminView()+`<section class="panel" style="margin-top:22px"><div class="row between wrap"><h2>Usuarios y roles</h2><input type="search" aria-label="Buscar usuario por nombre o correo" placeholder="Buscar por nombre o correo" oninput="miuFilterUsers(this.value)" style="padding:10px 12px;border:1px solid var(--line);border-radius:9px;min-width:240px"></div><p class="small muted" style="line-height:1.8;margin:10px 0 0">Cada persona aparece aquí después de entrar con Google por primera vez. El rol que asignés define qué ve en MiU.</p>${groups}</section>`;
+    return origAdminView()+`<section class="panel" style="margin-top:22px"><div class="row between wrap"><h2>Usuarios y roles</h2><input type="search" aria-label="Buscar usuario por nombre o correo" placeholder="Buscar por nombre o correo" oninput="miuFilterUsers(this.value)" style="padding:10px 12px;border:1px solid var(--line);border-radius:9px;min-width:240px"></div><p class="small muted" style="line-height:1.8;margin:10px 0 0">Cada persona aparece aquí después de entrar con Google por primera vez. El rol que asignés define qué ve en MiU.</p>${groups}</section>`+miuCoursePeoplePanel();
+  };
+  // Administración: catedráticos y estudiantes de cada curso.
+  function miuCoursePeoplePanel(){
+    const all=catalog||courses,cid=Number(state.miuAdminCourse)||all[0]?.id,c=all.find(x=>x.id===cid)||all[0];
+    if(!c)return '';
+    const people=role=>(users||[]).filter(u=>u.role===role);
+    const box=(u,checked,fn)=>`<label class="check-row" style="margin:8px 0"><input type="checkbox" ${checked?'checked':''} onchange="${fn}(${c.id},'${u.id}',this.checked)">${esc(u.display_name||'')} <span class="small muted">${esc(u.email||'')}</span></label>`;
+    const teachersHtml=people('catedratico').map(u=>box(u,teacherMap[c.id]?.has(u.id),'miuToggleTeacher')).join('')||'<p class="small muted">No hay catedráticos registrados. Asigná el rol Catedrático en Usuarios y roles.</p>';
+    const studentsHtml=people('estudiante').map(u=>box(u,enrollMap[c.id]?.has(u.id),'miuToggleEnroll')).join('')||'<p class="small muted">No hay estudiantes registrados.</p>';
+    const n=people('estudiante').filter(u=>enrollMap[c.id]?.has(u.id)).length;
+    return `<section class="panel" style="margin-top:22px"><div class="row between wrap"><h2>Cursos: catedráticos y estudiantes</h2><select aria-label="Elegir curso" onchange="state.miuAdminCourse=Number(this.value);save();render()" style="padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;max-width:320px">${all.map(x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)} · ${esc(x.section)}</option>`).join('')}</select></div><p class="small muted" style="line-height:1.8;margin:10px 0 0">Cada catedrático ve solo los cursos que le asignés aquí, con sus estudiantes, entregas, notas y chat. Cada estudiante ve solo los cursos en los que está inscrito.</p><div class="two-col" style="margin-top:18px"><div><h3>Estudiantes inscritos <span class="small muted">${n}</span></h3><div style="max-height:320px;overflow:auto">${studentsHtml}</div></div><div><h3>Catedráticos del curso</h3>${teachersHtml}</div></div></section>`;
+  }
+  async function refreshPeople(){await loadCatalog('administracion');render()}
+  window.miuToggleTeacher=async function(courseId,userId,on){
+    const {error}=on?await sb.from('course_teachers').insert({course_id:courseId,teacher_id:userId}):await sb.from('course_teachers').delete().eq('course_id',courseId).eq('teacher_id',userId);
+    toast(error?'No se pudo guardar: '+error.message:on?'Catedrático asignado al curso.':'Catedrático quitado del curso.');refreshPeople();
+  };
+  window.miuToggleEnroll=async function(courseId,userId,on){
+    const {error}=on?await sb.from('enrollments').insert({course_id:courseId,user_id:userId}):await sb.from('enrollments').delete().eq('course_id',courseId).eq('user_id',userId);
+    toast(error?'No se pudo guardar: '+error.message:on?'Estudiante inscrito.':'Estudiante dado de baja del curso.');refreshPeople();
+  };
+  // Cupos y auxiliares: se guardan para todos.
+  const origSaveAdmin=window.saveAdmin;
+  window.saveAdmin=async function(){
+    const before=JSON.stringify([state.adminCapacity,state.auxNames]);
+    origSaveAdmin();
+    if(!isAdmin||JSON.stringify([state.adminCapacity,state.auxNames])===before)return;
+    const ops=(catalog||[]).map(c=>{const aux=state.auxNames?.[c.id]||'Por confirmar',capacity=c.id===1?state.adminCapacity:c.capacity;return sb.from('courses').update({data:{...c,aux,capacity}}).eq('id',c.id)});
+    const res=await Promise.all(ops);
+    if(res.some(r=>r.error))toast('Algunos cambios no se guardaron para todos. Intentá de nuevo.');
+    await loadCatalog('administracion');
   };
 
   // ── Entregas reales: estudiante entrega → catedrático revisa y califica ──
   async function pushSubmission(taskId,receipt){
-    const row={student_name:state.profile?.name||state.profile?.email||'Estudiante',receipt,submitted_at:new Date().toISOString()};
+    const row={student_name:state.profile?.name||state.profile?.email||'Estudiante',receipt,course_id:tasks().find(x=>x.id===taskId)?.course??null,submitted_at:new Date().toISOString()};
     const {data:ex}=await sb.from('task_submissions').select('id').eq('task_id',taskId).eq('student_id',uid).maybeSingle();
     const {error}=ex?await sb.from('task_submissions').update(row).eq('id',ex.id):await sb.from('task_submissions').insert({task_id:taskId,...row});
     if(error)toast('Tu entrega quedó en tu cuenta, pero no pudimos enviarla al catedrático. Intentá de nuevo.');
@@ -497,7 +528,7 @@ login();
   window.miuReview=function(subId){
     const s=(subs||[]).find(x=>x.id===subId);if(!s)return;
     const t=tasks().find(x=>x.id===s.task_id),r=s.receipt||{};
-    openModal(t.title,'Revisión docente · '+s.student_name,`<div class="receipt"><b>${r.late?'Recibida · Tarde':'Recibida a tiempo'}</b><br>${esc(s.student_name)} · ${esc(r.time||'')}<br>${esc(r.code||'')}</div><h3>Adjuntos</h3>${(r.files||[]).map(f=>`<div class="file-row"><span>${/^https:\/\//.test(f.url||'')?`<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)} ↗</a>`:esc(f.name)}</span><span class="badge">${esc(f.source)}</span></div>`).join('')||'<p class="small muted">Sin adjuntos.</p>'}<p class="small muted" style="margin:15px 0">Los documentos de Google Drive se abren con su enlace. De los archivos subidos desde el dispositivo se conserva el nombre.</p>${t.group&&r.members?.length?`<h3>Integrantes</h3><div class="rubric">${esc(s.student_name)} · Confirmada<br>${r.members.map(m=>`${esc(m.name)} · ${m.confirmed?'Confirmada':'Pendiente'}`).join('<br>')}</div>`:''}<p class="small" style="margin-top:15px"><b>Comentario:</b> ${esc(r.comment||'Sin comentario')}</p><div class="field" style="margin-top:20px"><label for="submission-grade">Calificación (0–100)</label><input id="submission-grade" type="number" min="0" max="100" value="${s.grade??''}"></div><div class="field"><label for="submission-feedback">Retroalimentación</label><textarea id="submission-feedback">${esc(s.feedback||'')}</textarea></div>`,`<button class="btn secondary" onclick="miuReviewList(${s.task_id})">Volver</button><button class="btn" onclick="miuSaveGrade(${s.id})">Guardar revisión</button>`);
+    openModal(t.title,'Revisión docente · '+s.student_name,`<div class="receipt"><b>${r.late?'Recibida · Tarde':'Recibida a tiempo'}</b><br>${esc(s.student_name)} · ${esc(r.time||'')}<br>${esc(r.code||'')}</div><h3>Adjuntos</h3>${(r.files||[]).map(f=>`<div class="file-row"><span>${/^https:\/\//.test(f.url||'')?`<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)} ↗</a>`:f.path?`<button class="text-btn" style="padding:0" onclick="miuOpenFile(this.dataset.path)" data-path="${esc(f.path)}">${esc(f.name)} ↗</button>`:esc(f.name)}</span><span class="badge">${esc(f.source)}</span></div>`).join('')||'<p class="small muted">Sin adjuntos.</p>'}<p class="small muted" style="margin:15px 0">Tocá un adjunto para abrirlo. Los archivos subidos se guardan de forma privada: solo los ven el estudiante y el catedrático del curso.</p>${t.group&&r.members?.length?`<h3>Integrantes</h3><div class="rubric">${esc(s.student_name)} · Confirmada<br>${r.members.map(m=>`${esc(m.name)} · ${m.confirmed?'Confirmada':'Pendiente'}`).join('<br>')}</div>`:''}<p class="small" style="margin-top:15px"><b>Comentario:</b> ${esc(r.comment||'Sin comentario')}</p><div class="field" style="margin-top:20px"><label for="submission-grade">Calificación (0–100)</label><input id="submission-grade" type="number" min="0" max="100" value="${s.grade??''}"></div><div class="field"><label for="submission-feedback">Retroalimentación</label><textarea id="submission-feedback">${esc(s.feedback||'')}</textarea></div>`,`<button class="btn secondary" onclick="miuReviewList(${s.task_id})">Volver</button><button class="btn" onclick="miuSaveGrade(${s.id})">Guardar revisión</button>`);
   };
   window.miuSaveGrade=async function(subId){
     const val=document.querySelector('#submission-grade').value,n=Number(val);
@@ -521,8 +552,8 @@ login();
     if(!students){loadStudents().then(()=>{if(page==='course')render()})}
     if(!subs){loadSubs().then(()=>{if(page==='course')render()})}
     const c=C(activeCourse),courseTasks=tasks().filter(t=>t.course===c.id).map(t=>t.id);
-    const rows=!students?'<p class="small muted" style="margin-top:12px">Cargando estudiantes…</p>':students.length?students.map(st=>{const done=(subs||[]).filter(s=>courseTasks.includes(s.task_id)&&s.student_id===st.id).length;const name=st.display_name||st.email||'Estudiante';return `<div class="file-row"><span class="row" style="gap:10px"><span class="avatar" style="width:30px;height:30px;font-size:10px">${esc(name.split(/[\s@]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase())}</span><span><b>${esc(name)}</b><br><span class="small muted">${esc(st.email||'')}</span></span></span><span class="badge">${done}/${courseTasks.length} entregas</span></div>`}).join(''):'<p class="small muted" style="margin-top:12px">Todavía no hay estudiantes registrados. Aparecen aquí cuando entran con Google y Administración les asigna el rol Estudiante.</p>';
-    return html.replace('<aside class="stack">',`<aside class="stack"><section class="panel"><h2>Estudiantes <span class="small muted" style="margin-left:6px">${students?students.length:''}</span></h2>${rows}</section>`);
+    const rows=!students?'<p class="small muted" style="margin-top:12px">Cargando estudiantes…</p>':students.filter(st=>studentsOf(c.id).includes(st.id)).length?students.filter(st=>studentsOf(c.id).includes(st.id)).map(st=>{const done=(subs||[]).filter(s=>courseTasks.includes(s.task_id)&&s.student_id===st.id).length;const name=st.display_name||st.email||'Estudiante';return `<div class="file-row"><span class="row" style="gap:10px"><span class="avatar" style="width:30px;height:30px;font-size:10px">${esc(name.split(/[\s@]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase())}</span><span><b>${esc(name)}</b><br><span class="small muted">${esc(st.email||'')}</span></span></span><span class="badge">${done}/${courseTasks.length} entregas</span></div>`}).join(''):'<p class="small muted" style="margin-top:12px">Todavía no hay estudiantes inscritos en este curso. Administración los inscribe en Cursos y cupos.</p>';
+    return html.replace('<aside class="stack">',`<aside class="stack"><section class="panel"><h2>Estudiantes <span class="small muted" style="margin-left:6px">${students?students.filter(st=>studentsOf(c.id).includes(st.id)).length:''}</span></h2>${rows}</section>`);
   };
 
   // ── Volver a entregar dentro del plazo ──
@@ -570,7 +601,14 @@ login();
     const m=document.querySelector('.modal');if(!m)return;
     const name=state.profile?.name;
     if(name){const sub=m.querySelector('.modal-header p');if(sub)sub.textContent=name;const h=m.querySelector('.personal-qr h3');if(h)h.textContent=name;const img=m.querySelector('.personal-qr img');if(img)img.alt='QR personal de '+name}
-    if(isAdmin&&state.role==='Administración')return;
+    if(isAdmin&&state.role==='Administración'){
+      const btn=m.querySelector('button[onclick^="simulateConferenceScan"]');
+      const ev=m.querySelector('#qr-event')?.value||eventId;
+      if(btn&&btn.parentElement){const opts=(users||[]).filter(u=>u.role==='estudiante').map(u=>`<option value="${u.id}">${esc(u.display_name||'')} · ${esc(u.email||'')}</option>`).join('');
+        btn.parentElement.outerHTML=`<div class="field" style="margin-top:18px"><label for="miu-att-student">Registrar asistencia de</label><select id="miu-att-student"><option value="">Elegí al estudiante…</option>${opts}</select></div><div class="row wrap"><button class="btn secondary" onclick="miuRegisterAttendance('${esc(ev)}','entry')">Registrar entrada</button><button class="btn secondary" onclick="miuRegisterAttendance('${esc(ev)}','exit')">Registrar salida</button></div>`}
+      const sub=m.querySelector('.modal-header p');if(sub)sub.textContent='Registro de asistencia · Administración';
+      return;
+    }
     const btn=m.querySelector('button[onclick^="simulateConferenceScan"]');
     if(btn&&btn.parentElement)btn.parentElement.outerHTML='<div class="notice" style="margin-top:18px">Mostrá este QR al entrar y al salir. El personal de Administración registra tu asistencia.</div>';
     const lbl=m.querySelector('label[for="qr-event"]');if(lbl)lbl.textContent='Conferencia';
@@ -659,7 +697,7 @@ login();
     if(!students)loadStudents().then(()=>{if(page==='teacherGrades')render()});
     if(!courseGrades)loadCourseGrades().then(()=>{if(page==='teacherGrades')render()});
     const cid=Number(state.miuGradeCourse)||courses[0].id,c=C(cid);
-    const rows=!students||!courseGrades?'<tr><td colspan="3" class="muted">Cargando estudiantes…</td></tr>':students.length?students.map(st=>{const g=courseGrades.find(x=>x.student_id===st.id&&x.course_id===cid);return `<tr><td>${esc(st.display_name||st.email||'Estudiante')}<br><span class="small muted">${esc(st.email||'')}</span></td><td><input type="number" min="0" max="100" id="grade-${st.id}" aria-label="Promedio de ${esc(st.display_name||st.email||'')} en ${esc(c.name)}" value="${g?g.grade:''}" style="width:70px;padding:8px;border:1px solid var(--line);border-radius:7px"></td><td><button class="text-btn" onclick="miuPublishGrade('${st.id}',${cid})">${g?'Actualizar ↗':'Publicar ↗'}</button></td></tr>`}).join(''):'<tr><td colspan="3" class="muted">Todavía no hay estudiantes registrados.</td></tr>';
+    const rows=!students||!courseGrades?'<tr><td colspan="3" class="muted">Cargando estudiantes…</td></tr>':students.filter(st=>studentsOf(cid).includes(st.id)).length?students.filter(st=>studentsOf(cid).includes(st.id)).map(st=>{const g=courseGrades.find(x=>x.student_id===st.id&&x.course_id===cid);return `<tr><td>${esc(st.display_name||st.email||'Estudiante')}<br><span class="small muted">${esc(st.email||'')}</span></td><td><input type="number" min="0" max="100" id="grade-${st.id}" aria-label="Promedio de ${esc(st.display_name||st.email||'')} en ${esc(c.name)}" value="${g?g.grade:''}" style="width:70px;padding:8px;border:1px solid var(--line);border-radius:7px"></td><td><button class="text-btn" onclick="miuPublishGrade('${st.id}',${cid})">${g?'Actualizar ↗':'Publicar ↗'}</button></td></tr>`}).join(''):'<tr><td colspan="3" class="muted">Todavía no hay estudiantes inscritos en este curso.</td></tr>';
     return heading('Notas claras y a tiempo.','Publicá el promedio de cada estudiante; lo ve en Mis notas.')+`<div class="notice" style="margin-bottom:20px">Importación desde Google Sheets simulada: no abre ni lee hojas reales.</div><div class="panel"><div class="row between wrap" style="margin-bottom:20px"><h2>Cuadro de calificaciones</h2><div class="row wrap"><label class="small" for="grade-course" style="font-weight:600">Curso</label><select id="grade-course" onchange="state.miuGradeCourse=Number(this.value);save();render()" style="padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;max-width:260px">${courses.map(x=>`<option value="${x.id}" ${x.id===cid?'selected':''}>${esc(x.name)}</option>`).join('')}</select><button class="btn secondary" onclick="previewSheets()">${I('drive')}Importar de Sheets · Demo</button></div></div><div class="table-wrap"><table><thead><tr><th>ESTUDIANTE</th><th>PROMEDIO</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   };
   window.miuPublishGrade=async function(studentId,courseId){
@@ -677,6 +715,99 @@ login();
     (data||[]).forEach(g=>{if(state.gradeOverrides[g.course_id]!==g.grade){state.gradeOverrides[g.course_id]=g.grade;changed=true;try{addNotice({key:'grade:'+g.course_id+':'+g.grade,type:'grade',title:'Nueva nota publicada',message:C(g.course_id).name+' · Revisá el detalle en Mis notas.',target:'grades'})}catch{}}});
     if(changed){save();render()}
   }
+
+  // ════════ VERSIÓN COMPLETA ════════
+  // ── Cursos e inscripciones reales ──
+  let enrollMap={},teacherMap={},catalog=null;
+  async function loadCatalog(dbRole){
+    const [{data:cs},{data:en},{data:ct}]=await Promise.all([
+      sb.from('courses').select('id,data').order('id'),
+      sb.from('enrollments').select('user_id,course_id'),
+      sb.from('course_teachers').select('course_id,teacher_id')
+    ]);
+    if(cs&&cs.length){catalog=cs.map(c=>({...c.data,id:c.id}));}
+    enrollMap={};(en||[]).forEach(e=>{(enrollMap[e.course_id]=enrollMap[e.course_id]||new Set()).add(e.user_id)});
+    teacherMap={};(ct||[]).forEach(e=>{(teacherMap[e.course_id]=teacherMap[e.course_id]||new Set()).add(e.teacher_id)});
+    if(!catalog)return;
+    let mine=catalog;
+    if(dbRole==='estudiante')mine=catalog.filter(c=>enrollMap[c.id]?.has(uid));
+    if(dbRole==='catedratico')mine=catalog.filter(c=>teacherMap[c.id]?.has(uid));
+    window.miuNoCourses=dbRole!=='administracion'&&!mine.length;
+    window.miuCourseIds=dbRole==='administracion'?null:new Set(mine.map(c=>c.id));
+    courses.splice(0,courses.length,...(mine.length?mine:catalog));
+    if(!courses.some(c=>c.id===activeCourse))activeCourse=courses[0].id;
+    if(!courses.some(c=>c.id===selectedChat))selectedChat=courses[0].id;
+  }
+  const studentsOf=courseId=>[...(enrollMap[courseId]||[])];
+
+  // ── Tareas publicadas por el catedrático → llegan a sus estudiantes ──
+  async function loadSharedTasks(){
+    const {data}=await sb.from('course_tasks').select('task_id,course_id,data,updated_at');
+    const seedIds=new Set([1,2,3,4,5]);
+    window.miuSharedEdits={};window.miuSharedNew=[];window.miuSharedIds=new Set();
+    (data||[]).forEach(r=>{const t={...r.data,id:Number(r.task_id),course:r.course_id};
+      if(seedIds.has(t.id))window.miuSharedEdits[t.id]=t;else{window.miuSharedNew.push(t);window.miuSharedIds.add(t.id)}});
+    if(state.role==='Estudiante'){
+      state.seenShared=state.seenShared||{};
+      (data||[]).forEach(r=>{const v=r.data?.version||1;if(state.seenShared[r.task_id]!==v){state.seenShared[r.task_id]=v;try{addNotice({key:'shared:'+r.task_id+':'+v,type:v>1?'activity-update':'new-activity',taskId:Number(r.task_id),course:r.course_id,title:v>1?'Actividad actualizada':'Nueva actividad publicada',message:(r.data?.title||'Actividad')+' · '+(C(r.course_id)?.name||''),target:'task'})}catch{}}});
+      save();
+    }
+  }
+  const origCreateTask=window.createTask;
+  window.createTask=async function(){
+    const nBefore=state.extraTasks.length,editsBefore=JSON.stringify(state.taskEdits||{});
+    origCreateTask();
+    if(!isTeacher)return;
+    let activity=null;
+    if(state.extraTasks.length>nBefore)activity=state.extraTasks[state.extraTasks.length-1];
+    else{const now=state.taskEdits||{},prev=JSON.parse(editsBefore);activity=Object.values(now).find(a=>JSON.stringify(a)!==JSON.stringify(prev[a.id]))}
+    if(!activity)return;
+    const row={course_id:activity.course,data:activity,updated_at:new Date().toISOString()};
+    const {data:ex}=await sb.from('course_tasks').select('task_id').eq('task_id',activity.id).maybeSingle();
+    const {error}=ex?await sb.from('course_tasks').update(row).eq('task_id',activity.id):await sb.from('course_tasks').insert({task_id:activity.id,...row});
+    if(error){toast('No se pudo publicar para tus estudiantes: '+(error.code==='42501'?'no das este curso.':error.message));return}
+    await loadSharedTasks();render();
+  };
+
+  // ── Archivos subidos de verdad (Storage privado, máx. 10 MB) ──
+  window.addFiles=async function(files){
+    const t=tasks().find(x=>x.id===currentTask);
+    for(const f of files){
+      if(f.size>10*1024*1024){toast(f.name+' pesa más de 10 MB.');continue}
+      const safe=f.name.normalize('NFD').replace(/[^\w.\-]+/g,'_').slice(-80);
+      const path=`${uid}/${t?.course||0}/${currentTask}/${Date.now()}-${safe}`;
+      const item={name:f.name,source:'Subiendo…',path};attachments.push(item);attachmentUI();
+      const btn=document.querySelector('#submit-task');if(btn)btn.disabled=true;
+      const {error}=await sb.storage.from('entregas').upload(path,f,{contentType:f.type||'application/octet-stream'});
+      if(error){attachments.splice(attachments.indexOf(item),1);toast('No se pudo subir '+f.name+'. Intentá de nuevo.')}else item.source='Archivo';
+      attachmentUI();
+    }
+  };
+  window.miuOpenFile=async function(path){
+    const {data,error}=await sb.storage.from('entregas').createSignedUrl(path,300);
+    if(error||!data?.signedUrl){toast('No se pudo abrir el archivo.');return}
+    window.open(data.signedUrl,'_blank','noopener');
+  };
+
+  // ── Asistencia a conferencias: Administración registra, el estudiante la ve ──
+  async function pullAttendance(){
+    const {data}=await sb.from('conference_attendance').select('event_id,entry_at,exit_at').eq('student_id',uid);
+    if(!data?.length)return;
+    const t=iso=>iso?new Date(iso).toLocaleTimeString('es-GT',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Guatemala'}):undefined;
+    state.conferenceScans=state.conferenceScans||{};
+    data.forEach(a=>{state.conferenceScans[a.event_id]={...(state.conferenceScans[a.event_id]||{}),...(a.entry_at?{entry:t(a.entry_at)}:{}),...(a.exit_at?{exit:t(a.exit_at)}:{})}});
+    save();render();
+  }
+  window.miuRegisterAttendance=async function(eventId,kind){
+    const sid=document.querySelector('#miu-att-student')?.value;
+    if(!sid){toast('Elegí al estudiante.');return}
+    const now=new Date().toISOString();
+    const {data:ex}=await sb.from('conference_attendance').select('entry_at,exit_at').eq('event_id',eventId).eq('student_id',sid).maybeSingle();
+    if(kind==='exit'&&!ex?.entry_at){toast('Primero registrá la entrada.');return}
+    if(ex&&ex[kind+'_at']){toast(kind==='entry'?'La entrada ya estaba registrada.':'La salida ya estaba registrada.');return}
+    const {error}=ex?await sb.from('conference_attendance').update({[kind+'_at']:now}).eq('event_id',eventId).eq('student_id',sid):await sb.from('conference_attendance').insert({event_id:eventId,student_id:sid,[kind+'_at']:now});
+    toast(error?'No se pudo registrar: '+error.message:(kind==='entry'?'Entrada registrada.':'Salida registrada.')+' El estudiante ya la ve en su cuenta.');
+  };
 
   window.enter=async function(){
     const btn=document.querySelector('.google-btn');
@@ -716,8 +847,11 @@ login();
     if(!isAdmin||!remote?.data)state.role=roleLabel(dbRole);
     useProfile(user);
     renameOwnMessages();
+    try{await loadCatalog(dbRole);await loadSharedTasks()}catch{}
     save();
     render();
+    if(window.miuNoCourses)toast(dbRole==='catedratico'?'Administración todavía no te asignó cursos.':'Administración todavía no te inscribió en cursos.');
+    if(dbRole==='estudiante')pullAttendance();
     pullMyGrades();
     if(dbRole==='estudiante')pullCourseGrades();
     listenChat();
