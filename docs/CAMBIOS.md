@@ -33,6 +33,7 @@ Estos hallazgos salieron de usar la app publicada con distintos roles, durante l
 | 12 | El chat de clase no era compartido: cada quien veía solo sus mensajes. | Chat compartido en tiempo real. Nadie puede firmar como catedrático. | `44969ba` | Prueba en la base con suplantación bloqueada |
 | 13 | Los promedios que publicaba el catedrático no le llegaban al estudiante. | Calificaciones con estudiantes reales por curso. El estudiante recibe la nota y un aviso. | `44969ba` | Prueba en la base: el estudiante solo ve sus notas |
 | 14 | Cursos, inscripciones y tareas nuevas existían solo en el diseño. | Catálogo e inscripciones en la base. Administración asigna catedráticos y estudiantes. Las tareas publicadas llegan a los inscritos. Archivos en Storage privado. Asistencia real. | `f9cf185` | Prueba automatizada con los 3 roles y RLS (11 casos permitidos y bloqueados) |
+| 15 | «Vincular Google Calendar» era simulado. | Conexión real: calendario «MiU» con clases, entregas, exámenes y recordatorios, sin duplicar al volver a sincronizar; «Desconectar» lo quita. | `83f512d` | Prueba automatizada con Google simulado (crear, re-sincronizar, desconectar) |
 
 ## 3. Cambios técnicos para cumplir la guía
 
