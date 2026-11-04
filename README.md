@@ -37,6 +37,7 @@ El diseño completo se hizo en Claude Design y se publica **tal cual** (`index.h
 | Entregas → revisión docente | **Real**: cuando un estudiante entrega, el catedrático la ve en *Tareas y entregas*, abre los adjuntos de Drive y califica; el estudiante ve su nota y retroalimentación. Solo catedráticos y Administración pueden calificar (`grade_submission`). |
 | Chat de clase | **Real y compartido**: todos ven los mensajes de los demás en tiempo real (Supabase Realtime). Cada quien escribe solo a su nombre; un estudiante no puede firmar como catedrático. |
 | Calificaciones (promedios) | **Real**: el catedrático elige el curso y publica el promedio de cada estudiante registrado; el estudiante lo ve en Mis notas. |
+| Google Calendar | **Real**: crea un calendario «MiU» en la cuenta del usuario con clases (semanales), entregas, exámenes, lecturas y recordatorios, con avisos 24 h y 1 h antes. Permiso `calendar.app.created`: MiU solo toca ese calendario. |
 | Adjuntar desde Google Drive | **Real** (Google Picker, permiso `drive.file`: la app solo accede a los archivos que el usuario elige). |
 | Cursos e inscripciones | **Real**: el catálogo vive en la base. Administración asigna catedráticos y estudiantes a cada curso; cada quien ve solo los suyos. |
 | Tareas publicadas por el catedrático | **Real**: "Publicación rápida" llega a los estudiantes inscritos, con aviso. |
