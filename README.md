@@ -37,7 +37,11 @@ El diseño completo se hizo en Claude Design y se publica **tal cual** (`index.h
 | Chat de clase | **Real y compartido**: todos ven los mensajes de los demás en tiempo real (Supabase Realtime). Cada quien escribe solo a su nombre; un estudiante no puede firmar como catedrático. |
 | Calificaciones (promedios) | **Real**: el catedrático elige el curso y publica el promedio de cada estudiante registrado; el estudiante lo ve en Mis notas. |
 | Adjuntar desde Google Drive | **Real** (Google Picker, permiso `drive.file`: la app solo accede a los archivos que el usuario elige). |
-| Cursos, notas, pagos, parqueo, chat y datos de otros perfiles | Datos de ejemplo del diseño. |
+| Cursos e inscripciones | **Real**: el catálogo vive en la base. Administración asigna catedráticos y estudiantes a cada curso; cada quien ve solo los suyos. |
+| Tareas publicadas por el catedrático | **Real**: "Publicación rápida" llega a los estudiantes inscritos, con aviso. |
+| Archivos de entregas | **Real**: se guardan en Supabase Storage (privado, máx. 10 MB); solo los abren el estudiante y el catedrático del curso. |
+| Asistencia a conferencias | **Real**: Administración la registra desde el QR y al estudiante le aparece en su cuenta. |
+| Pagos, parqueo, pensum, horarios y datos de otros perfiles | Datos de ejemplo del diseño. |
 
 ## Arquitectura
 
@@ -53,7 +57,11 @@ Supabase Postgres (RLS)
   ├─ task_submissions   entregas compartidas con el catedrático
   ├─ chat_messages      chat de clase compartido
   ├─ course_grades      promedios publicados por catedráticos
-  └─ teacher_links      LinkedIn de catedráticos (lo edita Administración)
+  ├─ teacher_links      LinkedIn de catedráticos (lo edita Administración)
+  ├─ courses · enrollments · course_teachers   catálogo, inscripciones y asignaciones
+  ├─ course_tasks       tareas publicadas por catedráticos
+  ├─ conference_attendance   asistencia registrada por Administración
+  └─ Storage: entregas  archivos de entregas (privado)
 ```
 
 `supabase/migrations/` contiene el esquema completo (también tablas de cursos, tareas, horarios y avisos de una versión anterior en la rama `nextjs-supabase`).
